@@ -51,15 +51,31 @@ def initialize_weights(layers_dims, initializers):
 
     return parameters_W, parameters_b
 
-def random_normal(layer, layer_prev):
+def random_normal(layer, layer_prev, mean=0, std=1):
     """
-    Returns a random normal (mean=0, std=1) weight initialization for a layer
+    Returns a random normal weight initialization for a layer
 
     Arguments:
     layer       - number of units in the current layer (output units)
     layer_prev  - number of units in the previous layer (input units)
+    mean        - mean of the normal distribution to sample from
+    std         - standard deviation of the normal distribution to sample from
     """
-    return np.random.randn(layer, layer_prev)
+    rng = np.random.default_rng(0)
+    return rng.normal(mean, std, (layer, layer_prev))
+
+def random_uniform(layer, layer_prev, low=-1, high=1):
+    """
+    Returns a random uniform distribution weight initialization for a layer
+
+    Arguments:
+    layer       - number of units in the current layer (output units)
+    layer_prev  - number of units in the previous layer (input units)
+    low         - lower bound of the interval to sample from
+    high        - upper bound of the interval to sample from
+    """
+    rng = np.random.default_rng(0)
+    return rng.uniform(low, high, (layer, layer_prev))
 
 def kaiming(layer, layer_prev):
     """
@@ -75,7 +91,7 @@ def kaiming(layer, layer_prev):
 
     This initialization is good for ReLU activations
     """
-    return random_normal(layer, layer_prev) * np.sqrt(2/layer_prev)
+    return random_normal(layer, layer_prev, mean=0, std=np.sqrt(2/layer_prev))
 
 def xavier(layer, layer_prev):
     """
@@ -91,7 +107,8 @@ def xavier(layer, layer_prev):
 
     This initialization is good for tanh and sigmoid activations
     """
-    return random_normal(layer, layer_prev) * np.sqrt(6/(layer + layer_prev))
+    bound = np.sqrt(6/(layer + layer_prev))
+    return random_uniform(layer, layer_prev, low=-bound, high=bound)
 
 
 ### FORWARD AND BACKWARD PROPAGATION
@@ -195,6 +212,11 @@ def tanh():
 
     return tanh_forward, tanh_backward
 
+def forward(activation):
+    return activation[0]
+
+def backward(activation):
+    return activation[1]
 
 ### LAYERS
 
@@ -215,9 +237,6 @@ def sequential():
     caches = None               # caches for each layer, 1 indexed
     history = []
 
-    grads_W = None
-    grads_b = None
-
     optimizer = None
     loss = None
 
@@ -225,7 +244,7 @@ def sequential():
         """
         Adds a layer to the model
         """
-        nonlocal layers, activations, parameters_W, parameters_b, grads_W, grads_b, caches, optimizer, loss, initializers
+        nonlocal layers, activations, parameters_W, parameters_b, caches, optimizer, loss, initializers
 
         units, input_shape, activation, initializer = layer
 
@@ -242,7 +261,7 @@ def sequential():
         initializers.append(initializer)
 
     def compile_model(optimizer_func, loss_func, metrics=[]):
-        nonlocal layers, activations, parameters_W, parameters_b, grads_W, grads_b, caches, optimizer, loss
+        nonlocal layers, activations, parameters_W, parameters_b, caches, optimizer, loss
 
         parameters_W, parameters_b = initialize_weights(layers, initializers)
 
@@ -256,12 +275,10 @@ def sequential():
 
 
     def fit(x_train, y_train, batch_size=None, epochs=10, val_data=None):
-        nonlocal layers, activations, parameters_W, parameters_b, grads_W, grads_b, caches, optimizer, loss
+        nonlocal layers, activations, parameters_W, parameters_b, caches, optimizer, loss
 
         assert optimizer is not None, "Must call compile first"
         assert loss is not None
-
-
 
         for epoch in range(epochs):
             # print(parameters_W)
@@ -302,7 +319,7 @@ def sequential():
         return history, predict
 
     def predict(X):
-        nonlocal layers, activations, parameters_W, parameters_b, grads_W, grads_b, caches, optimizer, loss
+        nonlocal layers, activations, parameters_W, parameters_b, caches, optimizer, loss
 
         # forward prop
         A = X.T
@@ -313,18 +330,23 @@ def sequential():
         return A
 
     def summary():
-        nonlocal layers, activations, parameters_W, parameters_b, grads_W, grads_b, caches, optimizer, loss
+        nonlocal layers, activations, parameters_W, parameters_b, caches, optimizer, loss
 
-        print(layers)
-        for f, b in activations[1:]:
-            print(f.__name__)
+        print(f'+{"":-^20}+{"":-^30}+')
+        print(f'|{"Hidden Units":^20}|{"Activation Function":^30}|')
+        print(f'+{"":-^20}+{"":-^30}+')
+
+        for i in range(1, len(layers)):
+            print(f'|{layers[i]:^20}|{activations[i][0].__name__:^30}|')
+
+        print(f'+{"":-^20}+{"":-^30}+')
 
     return add, compile_model, summary
 
 
 ### OPTIMIZERS
 
-def gradient_descent(learning_rate=0.001):
+def gradient_descent(learning_rate=0.01):
     def update_weights(parameters_W, parameters_b, grads_W, grads_b):
         for p in range(1, len(parameters_W)):
             parameters_W[p] = parameters_W[p] - learning_rate * grads_W["dW" + str(p)]
@@ -332,4 +354,37 @@ def gradient_descent(learning_rate=0.001):
 
         return parameters_W, parameters_b
     return update_weights
+
+def gradient_descent_with_momentum(learning_rate=0.01, momentum=0.9):
+    vel_dW, vel_db = {}, {}
+
+    def update_weights(parameters_W, parameters_b, grads_W, grads_b):
+        for l in range(1, len(parameters_W)):
+            i_W = "dW" + str(l)
+            i_b = "db" + str(l)
+            vel_dW[i_W] = momentum * vel_dW.get(i_W, 0) + (1-momentum) * grads_W[i_W]
+            vel_db[i_b] = momentum * vel_db.get(i_b, 0) + (1-momentum) * grads_b[i_b]
+
+            parameters_W[l] = parameters_W[l] - learning_rate * vel_dW[i_W]
+            parameters_b[l] = parameters_b[l] - learning_rate * vel_db[i_b]
+
+        return parameters_W, parameters_b
+    return update_weights
+
+def RMSprop(learning_rate = 0.001, rho=0.9, epsilon=1e-8):
+    S_dW, S_db = {}, {}
+
+    def update_weights(parameters_W, parameters_b, grads_W, grads_b):
+        for l in range(1, len(parameters_W)):
+            i_W = "dW" + str(l)
+            i_b = "db" + str(l)
+            S_dW[i_W] = rho * S_dW.get(i_W, 0) + (1-rho) * np.power(grads_W[i_W], 2)
+            S_db[i_b] = rho * S_db.get(i_b, 0) + (1-rho) * np.power(grads_b[i_b], 2)
+
+            parameters_W[l] = parameters_W[l] - learning_rate * grads_W[i_W] / np.sqrt(S_dW[i_W] + epsilon)
+            parameters_b[l] = parameters_b[l] - learning_rate * grads_b[i_b] / np.sqrt(S_db[i_b] + epsilon)
+
+        return parameters_W, parameters_b
+    return update_weights
+
 

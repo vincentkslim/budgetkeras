@@ -2,7 +2,7 @@
 ## A totally impractical but functional clone of the keras Sequential Model
 ### Introduction
 This fun project is a clone of the keras Sequential Model but only
-using numpy. tensorflow is used at all, and numpy is the only package that is
+using numpy. tensorflow is not used at all, and numpy is the only package that is
 imported. The main purpose of this project was to help me understand all the
 math behind a fully connected neural network.
 
@@ -25,12 +25,26 @@ in CS61A, including:
 	- tanh
 - Optimizers
 	- Batch Gradient Descent
+- Loss Functions
+	- Binary Crossentropy (Logisitic Loss)
 
 ### TODO
 - Layers
-	- Conv
-	- Pooling
+	- [ ] Conv
+	- [ ] Pooling
 - Optimizers
-	- Mini-batch Gradient Descent
-	- RMSprop
-	- Adam
+	- [ ] Mini-batch Gradient Descent
+	- [x] RMSprop
+	- [x] Adam
+- Regularization
+	- [ ] L1, L2
+	- [ ] Dropout
+- Activation Functions
+	- [ ] Softmax
+	- [ ] LeakyReLU
+- Loss Functions
+	- [ ] MSE
+	- [ ] MAE?
+	- [ ] Categorical Crossentropy
+	- [ ] MSLE
+- Development Set History
